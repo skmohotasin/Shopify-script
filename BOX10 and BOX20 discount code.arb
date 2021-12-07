@@ -1,0 +1,43 @@
+min_discount_order_amount_one = Money.new(cents:100) * 49.99 #minimum amount needed to have in cart to get discount one
+max_discount_order_amount_one = Money.new(cents:100) * 99.99 #maximum amount needed to have in cart to get discount one
+min_discount_order_amount_two = Money.new(cents:100) * 99.99 #minimum amount needed to have in cart to get discount two
+total = Input.cart.subtotal_price_was
+if total > min_discount_order_amount_two
+max_discount = 2000
+end
+if total > min_discount_order_amount_one and total < max_discount_order_amount_one
+max_discount = 1000
+end
+total_discount = 0
+discount = if total > min_discount_order_amount_two 
+              2000 #discount amount you are offering box10 in cents
+            elsif total > min_discount_order_amount_one and total < max_discount_order_amount_one
+              1000 #discount amount you are offering box10 in cents
+            else
+              0
+            end
+message = if total > min_discount_order_amount_two 
+              "$20 off Boxing Day Special has been applied" #discount BOX20 message shown to customer
+            elsif total > min_discount_order_amount_one and total < max_discount_order_amount_one
+              "$10 off Boxing Day Special has been applied" #discount BOX10 message shown to customer
+            else
+              ""
+            end     
+Input.cart.line_items.each do |line_item|
+  product = line_item.variant.product
+  next if product.gift_card?
+  total_discount += discount
+  if total_discount == max_discount
+  line_item.change_line_price(line_item.line_price - Money.new(cents: discount), message: message )
+  end
+end
+
+Output.cart = Input.cart
+
+if Input.cart.discount_code
+  Input.cart.discount_code.reject(
+    message: "Maximum discount already applied! Discount codes can not be used during this promotion."
+  )
+end
+
+Output.cart = Input.cart
