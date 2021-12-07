@@ -1,0 +1,56 @@
+STAFF_TAG = "PICKUP STAFF"
+STAFF_MESSAGE = "Staff discount"
+REJECT_MESSAGE = "Discount codes cannot be redeemed with Staff Discount"
+
+DISCOUNT_APPLIED_FOR = ["Adult","Baby","Books","Bundle","Fragrances","Haircare","Health & Wellness","Home","Makeup","Mattress","Nails","Party","Personal Care","Pod Starter Kit","Skincare","Sports Nutrition","Stationery"]
+DISCOUNT_AMOUNT = 0.75 #means 25%
+Dicount_applied = false
+
+DISCOUNT_APPLIED_FOR_1 = ["Alcohol","Electronics","Grocery","Toys"]
+DISCOUNT_AMOUNT_1 = 0.85 #means 15%
+Dicount_applied_1 = false
+
+
+customer = Input.cart.customer
+if customer && customer.tags.include?(STAFF_TAG)
+  Input.cart.line_items.each do |line_item|
+    product = line_item.variant.product
+    
+    unless  product.tags.include?("rrp sale"||"Sale_Clearance")
+      
+      DISCOUNT_APPLIED_FOR.each do |target|
+        Dicount_applied = product.product_type.include?(target)
+        if Dicount_applied == true
+          break
+        end
+      end
+  
+      DISCOUNT_APPLIED_FOR_1.each do |target|
+        Dicount_applied_1 = product.product_type.include?(target)
+        if Dicount_applied_1 == true
+          break
+        end
+      end
+     
+     if Dicount_applied
+        next if product.gift_card?
+        line_item.change_line_price(line_item.line_price * DISCOUNT_AMOUNT, message: STAFF_MESSAGE)
+      end
+  
+      if Dicount_applied_1
+        next if product.gift_card?
+        line_item.change_line_price(line_item.line_price * DISCOUNT_AMOUNT_1, message: STAFF_MESSAGE)
+      end
+    
+    end
+    
+    next if product.gift_card?
+      if Input.cart.discount_code
+        Input.cart.discount_code.reject(message: REJECT_MESSAGE)
+      end
+    
+  end
+end
+
+
+Output.cart = Input.cart
