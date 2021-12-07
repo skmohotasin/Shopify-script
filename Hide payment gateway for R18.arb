@@ -1,0 +1,24 @@
+HidePaymentGateways = ["Afterpay" , "Laybuy" , "Genoapay", "Zip NZ", "Humm NZ – Interest Free Payments"]
+HidePaymentGateway = false
+
+if Input.cart.line_items.size > 1
+  Input.cart.line_items.each do |line_item|
+    product = line_item.variant.product
+    if product.tags.include?('R18')
+      HidePaymentGateway = true
+      break
+    end
+  end
+end
+
+
+if HidePaymentGateway
+    HidePaymentGateways.each do |words|
+      Output.payment_gateways = Input.payment_gateways.delete_if do |payment_gateway|
+        payment_gateway.name == words
+      end
+    end
+  Output.payment_gateways = Input.payment_gateways
+else
+   Output.payment_gateways = Input.payment_gateways
+end
