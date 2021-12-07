@@ -1,0 +1,194 @@
+/* PO BOX PART */
+SHOW_RATES_FOR_PO_BOX = [
+  {
+    po_box_triggers: [
+      "po box", "post office", "p o box", "p.o.box", "p.o. box", "p.o box", "pobox",
+      "post office box", "post box", "p. o. box", "po. box", "postal box",
+    ],
+    rate_match_type: :exact,
+    rate_names: ["NZ Rural Address (PO Box)","NZ Urban Address (PO Box)"],
+   },
+]
+
+HIDE_RATES_FOR_PO_BOX = [
+  {
+    po_box_triggers: [
+      "po box", "post office", "p o box", "p.o.box", "p.o. box", "p.o box", "pobox",
+      "post office box", "post box", "p. o. box", "po. box", "postal box",
+    ],
+    rate_match_type: :exact,
+    rate_names: ["NZ Rural Address", "NZ Urban Address"],
+  },
+]
+
+SHOW_RATES_FOR_ZIP_PROVINCE_COUNTRY = [
+  {
+    zip_code_match_type: :exact,
+    zip_codes: ["9818","8016"],
+    rate_match_type: :exact,
+    rate_names: ["Special Inter-island Shipping"],
+  },
+]
+
+class ZipCodeSelector
+  def initialize(match_type, zip_codes)
+    @comparator = match_type == :exact ? '==' : 'include?'
+    @zip_codes = zip_codes.map { |zip_code| zip_code.upcase.strip }
+  end
+
+  def match?(zip_code)
+    @zip_codes.any? { |zip| zip_code.to_s.upcase.strip.send(@comparator, zip) }
+  end
+end
+
+
+class AddressSelector
+  def initialize(triggers)
+    @triggers = triggers.map { |trigger| trigger.downcase.strip }
+  end
+
+  def match?(address)
+    address_fields = [address.address1, address.address2].map do |line|
+      line.nil? ? "" : line.downcase
+    end
+
+    address_fields = address_fields.join(" ")
+    @triggers.any? { |trigger| address_fields.include?(trigger) }
+  end
+end
+
+class RateNameSelector
+  def initialize(match_type, rate_names)
+    @match_type = match_type
+    @comparator = match_type == :exact ? '==' : 'include?'
+    @rate_names = rate_names.map { |rate_name| rate_name.downcase.strip }
+   end
+
+  def match?(shipping_rate)
+    if @match_type == :all
+     true
+     else
+      @rate_names.any? { |name| shipping_rate.name.downcase.send(@comparator, name) }
+    end
+  end
+end
+
+class HideRatesForPOBoxCampaign
+  def initialize(campaigns)
+    @campaigns = campaigns
+  end
+
+  def run(cart, shipping_rates)
+    address = cart.shipping_address
+
+    return if address.nil?
+
+    @campaigns.each do |campaign|
+      next unless AddressSelector.new(campaign[:po_box_triggers]).match?(address)
+
+      rate_name_selector = RateNameSelector.new(
+        campaign[:rate_match_type],
+        campaign[:rate_names],
+      )
+
+      shipping_rates.delete_if do |shipping_rate|
+        rate_name_selector.match?(shipping_rate)
+      end
+    end
+  end
+end
+
+class ShowRatesForPOBoxCampaign
+  def initialize(campaigns)
+    @campaigns = campaigns
+  end
+
+  def run(cart, shipping_rates)
+    address = cart.shipping_address
+
+    return if address.nil?
+
+    @campaigns.each do |campaign|
+      next if AddressSelector.new(campaign[:po_box_triggers]).match?(address)
+
+      rate_name_selector = RateNameSelector.new(
+        campaign[:rate_match_type],
+        campaign[:rate_names],
+      )
+
+      shipping_rates.delete_if do |shipping_rate|
+        rate_name_selector.match?(shipping_rate)
+      end
+    end
+  end
+end
+
+class ShowRatesForZipProvinceCountryCampaign
+  def initialize(campaigns)
+    @campaigns = campaigns
+  end
+
+  def run(cart, shipping_rates)
+    address = cart.shipping_address
+
+    @campaigns.each do |campaign|
+      zip_code_selector = ZipCodeSelector.new(campaign[:zip_code_match_type], campaign[:zip_codes])
+      rate_name_selector = RateNameSelector.new(campaign[:rate_match_type], campaign[:rate_names])
+
+      if address.nil?
+        full_match = false
+      else
+        zip_match = zip_code_selector.match?(address.zip)
+        full_match = zip_match
+      end
+
+      shipping_rates.delete_if do |shipping_rate|
+        rate_name_selector.match?(shipping_rate) != full_match
+      end
+    end
+  end
+end
+
+CAMPAIGNS = [
+  HideRatesForPOBoxCampaign.new(HIDE_RATES_FOR_PO_BOX),
+  ShowRatesForPOBoxCampaign.new(SHOW_RATES_FOR_PO_BOX),
+  ShowRatesForZipProvinceCountryCampaign.new(SHOW_RATES_FOR_ZIP_PROVINCE_COUNTRY),
+]
+
+CAMPAIGNS.each do |campaign|
+  campaign.run(Input.cart, Input.shipping_rates)
+end
+
+/* PO BOX PART END */
+
+/*Truned off Express Delivery*/
+TAGLIST = ["Nutrition Systems","Stationery","pww-longtail","Bulk-item"]
+SHIPPINGNAME = ["Priority Dispatch"]
+
+Input.cart.line_items.each do |line_item|
+  productTag = line_item.variant.product.tags
+  productTag.each do |tag|
+    if TAGLIST.include?(tag)
+       Input.shipping_rates.delete_if do |shipping_rate|
+          SHIPPINGNAME.include?(shipping_rate.name)
+      end
+    end
+  end
+end
+
+STAFF_TAG = "PICKUP STAFF"
+STAFF_SHIPPINGTITILE = ["Pickup"]
+
+if Input.cart.customer
+  Input.shipping_rates.delete_if do |shipping_rate|
+    unless Input.cart.customer.tags.include?(STAFF_TAG)
+       STAFF_SHIPPINGTITILE.include?(shipping_rate.name)
+    end
+  end
+else
+  Input.shipping_rates.delete_if do |shipping_rate|
+    STAFF_SHIPPINGTITILE.include?(shipping_rate.name)
+  end
+end
+
+Output.shipping_rates = Input.shipping_rates
