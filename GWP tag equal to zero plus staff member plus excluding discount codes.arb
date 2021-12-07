@@ -54,9 +54,6 @@ if customer && customer.tags.include?(STAFF_TAG)
   end
 end
 
-
-Output.cart = Input.cart
-
 Input.cart.line_items.each do |line_item|
     product = line_item.variant.product
     if product.tags.include?(GWP_TAG)
